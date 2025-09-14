@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Search,
   QrCode,
@@ -18,103 +19,34 @@ import {
   XCircle,
   Loader2,
   ExternalLink,
+  AlertTriangle,
 } from "lucide-react"
-
-interface TrackingEvent {
-  id: string
-  stage: "farm" | "warehouse" | "store" | "customer"
-  submitter: string
-  role: string
-  timestamp: string
-  metadata: {
-    temperature?: number
-    notes?: string
-    location?: { lat: number; lng: number }
-  }
-  ipfsHash: string
-  aiVerified: "verified" | "failed" | "pending"
-  transactionHash: string
-}
-
-const mockTrackingData: TrackingEvent[] = [
-  {
-    id: "1",
-    stage: "farm",
-    submitter: "0x1234...5678",
-    role: "Farmer",
-    timestamp: "2024-01-15T08:30:00Z",
-    metadata: {
-      temperature: 18,
-      notes: "Organic tomatoes harvested at optimal ripeness",
-      location: { lat: 40.7128, lng: -74.006 },
-    },
-    ipfsHash: "QmX1Y2Z3...",
-    aiVerified: "verified",
-    transactionHash: "0xabc123...",
-  },
-  {
-    id: "2",
-    stage: "warehouse",
-    submitter: "0x9876...5432",
-    role: "Warehouse Manager",
-    timestamp: "2024-01-16T14:15:00Z",
-    metadata: {
-      temperature: 4,
-      notes: "Received and stored in cold storage facility",
-      location: { lat: 40.7589, lng: -73.9851 },
-    },
-    ipfsHash: "QmA4B5C6...",
-    aiVerified: "verified",
-    transactionHash: "0xdef456...",
-  },
-  {
-    id: "3",
-    stage: "store",
-    submitter: "0x5555...7777",
-    role: "Store Manager",
-    timestamp: "2024-01-18T10:45:00Z",
-    metadata: {
-      temperature: 6,
-      notes: "Displayed in produce section",
-      location: { lat: 40.7505, lng: -73.9934 },
-    },
-    ipfsHash: "QmG7H8I9...",
-    aiVerified: "pending",
-    transactionHash: "0xghi789...",
-  },
-  {
-    id: "4",
-    stage: "customer",
-    submitter: "0x3333...9999",
-    role: "Customer",
-    timestamp: "2024-01-19T16:20:00Z",
-    metadata: {
-      notes: "Purchased and consumed - excellent quality!",
-      location: { lat: 40.7282, lng: -73.7949 },
-    },
-    ipfsHash: "QmJ1K2L3...",
-    aiVerified: "verified",
-    transactionHash: "0xjkl012...",
-  },
-]
+import { apiService, Event } from "@/lib/api"
 
 export default function TrackProductPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
-  const [trackingData, setTrackingData] = useState<TrackingEvent[] | null>(null)
+  const [trackingData, setTrackingData] = useState<Event[] | null>(null)
   const [productId, setProductId] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
 
     setIsSearching(true)
+    setError(null)
     setProductId(searchQuery)
 
-    // Simulate API call
-    setTimeout(() => {
-      setTrackingData(mockTrackingData)
+    try {
+      const events = await apiService.getProductEvents(searchQuery)
+      setTrackingData(events)
+    } catch (err) {
+      setError('Failed to fetch product events. Please check if the product ID exists and the backend server is running.')
+      console.error('Error fetching product events:', err)
+      setTrackingData(null)
+    } finally {
       setIsSearching(false)
-    }, 1500)
+    }
   }
 
   const getStageIcon = (stage: string) => {
@@ -191,7 +123,7 @@ export default function TrackProductPage() {
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 />
               </div>
-              <Button onClick={handleSearch} disabled={isSearching} className="flex items-center gap-2">
+              <Button onClick={handleSearch} disabled={isSearching || !searchQuery.trim()} className="flex items-center gap-2">
                 {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 Search
               </Button>
@@ -203,8 +135,15 @@ export default function TrackProductPage() {
           </div>
         </Card3D>
 
+        {error && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-800">{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Timeline Visualization */}
-        {trackingData && (
+        {trackingData && trackingData.length > 0 && (
           <div className="space-y-6">
             <Card3D>
               <div className="flex items-center justify-between mb-6">
@@ -221,7 +160,7 @@ export default function TrackProductPage() {
                 <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-border"></div>
 
                 {trackingData.map((event, index) => (
-                  <div key={event.id} className="relative flex items-start gap-6 pb-8 last:pb-0">
+                  <div key={event._id} className="relative flex items-start gap-6 pb-8 last:pb-0">
                     {/* Timeline Node */}
                     <div
                       className={`relative z-10 w-16 h-16 ${getStageColor(event.stage)} rounded-full flex items-center justify-center text-2xl shadow-lg`}
@@ -236,7 +175,7 @@ export default function TrackProductPage() {
                           <div>
                             <h3 className="text-lg font-semibold capitalize">{event.stage}</h3>
                             <p className="text-sm text-muted-foreground">
-                              Submitted by {event.role} ({event.submitter})
+                              Submitted by {event.submitter}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -267,7 +206,7 @@ export default function TrackProductPage() {
 
                           <div className="flex items-center gap-2 text-sm">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            {event.role}
+                            {event.submitter}
                           </div>
                         </div>
 
@@ -321,11 +260,20 @@ export default function TrackProductPage() {
               </Card3D>
 
               <Card3D className="text-center p-4">
-                <div className="text-2xl font-bold text-purple-500">4</div>
+                <div className="text-2xl font-bold text-purple-500">{new Set(trackingData.map(e => e.stage)).size}</div>
                 <div className="text-sm text-muted-foreground">Stages Completed</div>
               </Card3D>
             </div>
           </div>
+        )}
+
+        {/* No Results State */}
+        {trackingData && trackingData.length === 0 && (
+          <Card3D className="text-center py-12">
+            <Search className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">No Events Found</h3>
+            <p className="text-muted-foreground">No events were found for product ID: {productId}</p>
+          </Card3D>
         )}
 
         {/* Empty State */}

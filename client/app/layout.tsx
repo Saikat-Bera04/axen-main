@@ -4,7 +4,7 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
-import { Navbar } from "@/components/navigation/navbar"
+import { NavbarDemo } from "@/components/navigation/navbar"
 import { Footer } from "@/components/navigation/footer"
 import { GeminiBackground } from "@/components/ui/gemini-background"
 import { Suspense } from "react"
@@ -22,10 +22,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning={true}>
         <Suspense fallback={<div>Loading...</div>}>
           <GeminiBackground />
-          <Navbar />
+          <NavbarDemo />
           <main className="pt-16 min-h-screen">{children}</main>
           <Footer />
         </Suspense>

@@ -22,8 +22,8 @@ export default function HomePage() {
             farm to customer.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
-            <Button size="lg" className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center color-blue items-center mt-8">
+            <Button size="lg" className="flex items-center  gap-2">
               <Wallet className="h-5 w-5" />
               Connect Wallet
             </Button>
