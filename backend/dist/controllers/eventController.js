@@ -8,13 +8,18 @@ const blockchainService_1 = require("../services/blockchainService");
 const aiService_1 = require("../services/aiService");
 const submitEvent = async (req, res) => {
     try {
-        const { productId, stage, submitter, temperature, notes, latitude, longitude } = req.body;
+        console.log('📝 Received event submission request');
+        console.log('Request body:', req.body);
+        console.log('Request files:', req.files);
+        const { productId, stage, submitter, temperature, notes, latitude, longitude, timestamp } = req.body;
         const files = req.files;
         // Validate required fields
         if (!productId || !stage || !submitter) {
+            console.log('❌ Missing required fields:', { productId, stage, submitter });
             res.status(400).json({ error: 'Missing required fields: productId, stage, and submitter' });
             return;
         }
+        console.log('✅ All required fields present:', { productId, stage, submitter });
         // Upload files to IPFS
         let ipfsHash = '';
         if (files && files.length > 0) {
@@ -84,19 +89,18 @@ const getProductEvents = async (req, res) => {
             return;
         }
         const events = await Event_1.EventModel.find({ productId }).sort({ timestamp: -1 });
-        res.json({
-            productId,
-            events: events.map(event => ({
-                id: event._id,
-                stage: event.stage,
-                submitter: event.submitter,
-                timestamp: event.timestamp,
-                metadata: event.metadata,
-                ipfsHash: event.ipfsHash,
-                transactionHash: event.transactionHash,
-                aiVerified: event.aiVerified
-            }))
-        });
+        // Return direct array to match frontend expectations
+        res.json(events.map(event => ({
+            _id: event._id,
+            productId: event.productId,
+            stage: event.stage,
+            submitter: event.submitter,
+            timestamp: event.timestamp,
+            metadata: event.metadata,
+            ipfsHash: event.ipfsHash,
+            transactionHash: event.transactionHash,
+            aiVerified: event.aiVerified
+        })));
     }
     catch (error) {
         console.error('Error fetching product events:', error);

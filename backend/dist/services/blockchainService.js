@@ -1,29 +1,45 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.addEventToBlockchain = addEventToBlockchain;
 exports.getEventsFromBlockchain = getEventsFromBlockchain;
 const ethers_1 = require("ethers");
-// Validate environment variables and create provider/wallet safely
+const dotenv_1 = __importDefault(require("dotenv"));
+// Load environment variables
+dotenv_1.default.config();
+// Validate environment variables and create Avalanche provider/wallet safely
 const createBlockchainConnection = () => {
     try {
         const rpcUrl = process.env.BLOCKCHAIN_RPC_URL;
+        const testnetRpcUrl = process.env.BLOCKCHAIN_TESTNET_RPC_URL;
         const privateKey = process.env.PRIVATE_KEY;
-        if (!rpcUrl || !privateKey || privateKey === 'your_wallet_private_key_here') {
-            console.log('⚠️  Blockchain service running in mock mode - invalid or missing credentials');
+        const networkName = process.env.NETWORK_NAME || 'avalanche';
+        const chainId = parseInt(process.env.CHAIN_ID || '43114');
+        if (!rpcUrl || !privateKey || privateKey === 'your_core_wallet_private_key_here') {
+            console.log('⚠️  Avalanche blockchain service running in mock mode - invalid or missing credentials');
             return null;
         }
         // Validate private key format (should be 64 hex characters, optionally prefixed with 0x)
         const cleanPrivateKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
         if (!/^0x[a-fA-F0-9]{64}$/.test(cleanPrivateKey)) {
-            console.log('⚠️  Invalid private key format - blockchain service running in mock mode');
+            console.log('⚠️  Invalid private key format - Avalanche blockchain service running in mock mode');
             return null;
         }
-        const provider = new ethers_1.ethers.JsonRpcProvider(rpcUrl);
+        // Use testnet for development, mainnet for production
+        const selectedRpcUrl = process.env.NODE_ENV === 'production' ? rpcUrl : (testnetRpcUrl || rpcUrl);
+        const selectedChainId = process.env.NODE_ENV === 'production' ? chainId : parseInt(process.env.TESTNET_CHAIN_ID || '43113');
+        const provider = new ethers_1.ethers.JsonRpcProvider(selectedRpcUrl, {
+            name: networkName,
+            chainId: selectedChainId
+        });
         const wallet = new ethers_1.ethers.Wallet(cleanPrivateKey, provider);
-        return { provider, wallet };
+        console.log(`🔗 Connected to Avalanche ${process.env.NODE_ENV === 'production' ? 'Mainnet' : 'Testnet'} (Chain ID: ${selectedChainId})`);
+        return { provider, wallet, chainId: selectedChainId };
     }
     catch (error) {
-        console.log('⚠️  Failed to initialize blockchain connection - running in mock mode:', error.message);
+        console.log('⚠️  Failed to initialize Avalanche connection - running in mock mode:', error.message);
         return null;
     }
 };
@@ -36,16 +52,24 @@ const contractABI = [
 async function addEventToBlockchain(eventData) {
     try {
         if (!blockchainConnection) {
-            console.log('🔄 Mock blockchain transaction for:', eventData.productId);
+            console.log('🔄 Mock Avalanche transaction for:', eventData.productId);
             return `0x${Math.random().toString(16).substr(2, 64)}`;
         }
         const contract = new ethers_1.ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, blockchainConnection.wallet);
-        const tx = await contract.addEvent(eventData.productId, eventData.stage, eventData.actorId, eventData.timestamp, eventData.evidenceHashes);
+        // Add gas estimation for Avalanche network
+        const gasEstimate = await contract.addEvent.estimateGas(eventData.productId, eventData.stage, eventData.actorId, eventData.timestamp, eventData.evidenceHashes);
+        const tx = await contract.addEvent(eventData.productId, eventData.stage, eventData.actorId, eventData.timestamp, eventData.evidenceHashes, {
+            gasLimit: gasEstimate * 120n / 100n, // Add 20% buffer
+            maxFeePerGas: ethers_1.ethers.parseUnits('25', 'gwei'), // Avalanche typical gas price
+            maxPriorityFeePerGas: ethers_1.ethers.parseUnits('1', 'gwei')
+        });
+        console.log(`⛓️  Avalanche transaction submitted: ${tx.hash}`);
         await tx.wait();
+        console.log(`✅ Avalanche transaction confirmed: ${tx.hash}`);
         return tx.hash;
     }
     catch (error) {
-        console.error('Blockchain error:', error);
+        console.error('Avalanche blockchain error:', error);
         // For development, return a mock transaction hash
         return `0x${Math.random().toString(16).substr(2, 64)}`;
     }
@@ -53,15 +77,16 @@ async function addEventToBlockchain(eventData) {
 async function getEventsFromBlockchain(productId) {
     try {
         if (!blockchainConnection) {
-            console.log('🔄 Mock blockchain fetch for:', productId);
+            console.log('🔄 Mock Avalanche fetch for:', productId);
             return [];
         }
         const contract = new ethers_1.ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, blockchainConnection.provider);
         const events = await contract.getProductEvents(productId);
+        console.log(`📖 Retrieved ${events.length} events from Avalanche for product: ${productId}`);
         return events;
     }
     catch (error) {
-        console.error('Blockchain fetch error:', error);
+        console.error('Avalanche fetch error:', error);
         return [];
     }
 }

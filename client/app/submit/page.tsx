@@ -67,12 +67,34 @@ export default function SubmitEventPage() {
     setIsSubmitting(true)
     setError(null)
 
+    // Debug: Log form data before submission
+    console.log('Form data before submission:', formData)
+
+    // Validate required fields on frontend
+    if (!formData.productId.trim()) {
+      setError('Product ID is required')
+      setIsSubmitting(false)
+      return
+    }
+    
+    if (!formData.stage.trim()) {
+      setError('Supply Chain Stage is required')
+      setIsSubmitting(false)
+      return
+    }
+    
+    if (!formData.submitter.trim()) {
+      setError('Submitter Name is required')
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       // Create FormData for file upload
       const submitData = new FormData()
-      submitData.append('productId', formData.productId)
-      submitData.append('stage', formData.stage)
-      submitData.append('submitter', formData.submitter)
+      submitData.append('productId', formData.productId.trim())
+      submitData.append('stage', formData.stage.trim())
+      submitData.append('submitter', formData.submitter.trim())
       submitData.append('timestamp', formData.timestamp)
       
       if (formData.temperature) {
@@ -92,6 +114,12 @@ export default function SubmitEventPage() {
       selectedFiles.forEach((file, index) => {
         submitData.append('evidence', file)
       })
+
+      // Debug: Log FormData contents
+      console.log('FormData contents:')
+      for (let [key, value] of submitData.entries()) {
+        console.log(`${key}:`, value)
+      }
 
       const result = await apiService.submitEvent(submitData)
       setTransactionHash(result.transactionHash)

@@ -6,17 +6,17 @@ const Event_1 = require("../models/Event");
 const getProducts = async (req, res) => {
     try {
         const products = await product_1.ProductModel.find().sort({ lastUpdated: -1 });
-        res.json({
-            products: products.map(product => ({
-                productId: product.productId,
-                batchId: product.batchId,
-                currentStage: product.currentStage,
-                lastUpdated: product.lastUpdated,
-                verificationStatus: product.verificationStatus,
-                eventsCount: product.eventsCount,
-                submitter: product.submitter
-            }))
-        });
+        // Return direct array to match frontend expectations
+        res.json(products.map(product => ({
+            _id: product._id,
+            productId: product.productId,
+            batchId: product.batchId,
+            currentStage: product.currentStage,
+            lastUpdated: product.lastUpdated,
+            verificationStatus: product.verificationStatus,
+            eventsCount: product.eventsCount,
+            submitter: product.submitter
+        })));
     }
     catch (error) {
         console.error('Error fetching products:', error);

@@ -48,7 +48,7 @@ const ProductSchema = new mongoose_1.Schema({
     },
     currentStage: {
         type: String,
-        enum: ['farm', 'warehouse', 'store', 'customer'],
+        enum: ['manufacturing', 'farm', 'processing', 'warehouse', 'distribution', 'store', 'customer', 'quality_check', 'packaging', 'shipping'],
         default: 'farm'
     },
     lastUpdated: {

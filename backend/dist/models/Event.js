@@ -44,7 +44,7 @@ const EventSchema = new mongoose_1.Schema({
     stage: {
         type: String,
         required: true,
-        enum: ['farm', 'warehouse', 'store', 'customer']
+        enum: ['manufacturing', 'farm', 'processing', 'warehouse', 'distribution', 'store', 'customer', 'quality_check', 'packaging', 'shipping']
     },
     submitter: {
         type: String,

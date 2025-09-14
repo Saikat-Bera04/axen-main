@@ -7,14 +7,21 @@ import { triggerAIVerification } from '../services/aiService';
 
 export const submitEvent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { productId, stage, submitter, temperature, notes, latitude, longitude } = req.body;
+    console.log('📝 Received event submission request');
+    console.log('Request body:', req.body);
+    console.log('Request files:', req.files);
+    
+    const { productId, stage, submitter, temperature, notes, latitude, longitude, timestamp } = req.body;
     const files = req.files as Express.Multer.File[];
 
     // Validate required fields
     if (!productId || !stage || !submitter) {
+      console.log('❌ Missing required fields:', { productId, stage, submitter });
       res.status(400).json({ error: 'Missing required fields: productId, stage, and submitter' });
       return;
     }
+
+    console.log('✅ All required fields present:', { productId, stage, submitter });
 
     // Upload files to IPFS
     let ipfsHash = '';
@@ -96,19 +103,18 @@ export const getProductEvents = async (req: Request, res: Response): Promise<voi
 
     const events = await EventModel.find({ productId }).sort({ timestamp: -1 });
     
-    res.json({
-      productId,
-      events: events.map(event => ({
-        id: event._id,
-        stage: event.stage,
-        submitter: event.submitter,
-        timestamp: event.timestamp,
-        metadata: event.metadata,
-        ipfsHash: event.ipfsHash,
-        transactionHash: event.transactionHash,
-        aiVerified: event.aiVerified
-      }))
-    });
+    // Return direct array to match frontend expectations
+    res.json(events.map(event => ({
+      _id: event._id,
+      productId: event.productId,
+      stage: event.stage,
+      submitter: event.submitter,
+      timestamp: event.timestamp,
+      metadata: event.metadata,
+      ipfsHash: event.ipfsHash,
+      transactionHash: event.transactionHash,
+      aiVerified: event.aiVerified
+    })));
   } catch (error) {
     console.error('Error fetching product events:', error);
     res.status(500).json({ error: 'Internal server error' });

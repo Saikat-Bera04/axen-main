@@ -6,17 +6,17 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
   try {
     const products = await ProductModel.find().sort({ lastUpdated: -1 });
     
-    res.json({
-      products: products.map(product => ({
-        productId: product.productId,
-        batchId: product.batchId,
-        currentStage: product.currentStage,
-        lastUpdated: product.lastUpdated,
-        verificationStatus: product.verificationStatus,
-        eventsCount: product.eventsCount,
-        submitter: product.submitter
-      }))
-    });
+    // Return direct array to match frontend expectations
+    res.json(products.map(product => ({
+      _id: product._id,
+      productId: product.productId,
+      batchId: product.batchId,
+      currentStage: product.currentStage,
+      lastUpdated: product.lastUpdated,
+      verificationStatus: product.verificationStatus,
+      eventsCount: product.eventsCount,
+      submitter: product.submitter
+    })));
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ error: 'Internal server error' });

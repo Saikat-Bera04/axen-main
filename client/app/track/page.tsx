@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card3D } from "@/components/ui/card-3d"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { QRCodeGenerator } from "@/components/ui/qr-code-generator"
 import {
   Search,
   QrCode,
@@ -20,8 +23,10 @@ import {
   Loader2,
   ExternalLink,
   AlertTriangle,
+  Package,
+  RefreshCw,
 } from "lucide-react"
-import { apiService, Event } from "@/lib/api"
+import { apiService, Event, Product } from "@/lib/api"
 
 export default function TrackProductPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -29,16 +34,38 @@ export default function TrackProductPage() {
   const [trackingData, setTrackingData] = useState<Event[] | null>(null)
   const [productId, setProductId] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(true)
+  const [showAllProducts, setShowAllProducts] = useState(true)
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return
+  const fetchProducts = async () => {
+    try {
+      setLoadingProducts(true)
+      const data = await apiService.getProducts()
+      setProducts(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error fetching products:', err)
+      setProducts([])
+    } finally {
+      setLoadingProducts(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  const handleSearch = async (productIdToSearch?: string) => {
+    const searchId = productIdToSearch || searchQuery
+    if (!searchId.trim()) return
 
     setIsSearching(true)
     setError(null)
-    setProductId(searchQuery)
+    setProductId(searchId)
+    setShowAllProducts(false)
 
     try {
-      const events = await apiService.getProductEvents(searchQuery)
+      const events = await apiService.getProductEvents(searchId)
       setTrackingData(events)
     } catch (err) {
       setError('Failed to fetch product events. Please check if the product ID exists and the backend server is running.')
@@ -47,6 +74,19 @@ export default function TrackProductPage() {
     } finally {
       setIsSearching(false)
     }
+  }
+
+  const handleProductSelect = (productId: string) => {
+    setSearchQuery(productId)
+    handleSearch(productId)
+  }
+
+  const handleBackToProducts = () => {
+    setShowAllProducts(true)
+    setTrackingData(null)
+    setProductId("")
+    setSearchQuery("")
+    setError(null)
   }
 
   const getStageIcon = (stage: string) => {
@@ -123,7 +163,7 @@ export default function TrackProductPage() {
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 />
               </div>
-              <Button onClick={handleSearch} disabled={isSearching || !searchQuery.trim()} className="flex items-center gap-2">
+              <Button onClick={() => handleSearch()} disabled={isSearching || !searchQuery.trim()} className="flex items-center gap-2">
                 {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 Search
               </Button>
@@ -142,17 +182,170 @@ export default function TrackProductPage() {
           </Alert>
         )}
 
+        {/* Available Products Section */}
+        {showAllProducts && (
+          <Card3D className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Package className="h-6 w-6 text-primary" />
+                  Available Products
+                </h2>
+                <p className="text-muted-foreground">Click on any product to view its complete supply chain journey.</p>
+              </div>
+              <Button onClick={fetchProducts} disabled={loadingProducts} className="flex items-center gap-2">
+                <RefreshCw className={`h-4 w-4 ${loadingProducts ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+
+            {loadingProducts ? (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2 text-lg">Loading products...</span>
+              </div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">No Products Found</h3>
+                <p className="text-muted-foreground">No products have been submitted yet. Submit your first event to get started.</p>
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product ID</TableHead>
+                      <TableHead>Batch ID</TableHead>
+                      <TableHead>Current Stage</TableHead>
+                      <TableHead>Last Updated</TableHead>
+                      <TableHead>Events</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products.map((product) => (
+                      <TableRow key={product._id} className="hover:bg-muted/50 cursor-pointer">
+                        <TableCell className="font-medium">{product.productId}</TableCell>
+                        <TableCell>{product.batchId}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={`${getStageColor(product.currentStage)} text-white`}>
+                            {product.currentStage.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(product.lastUpdated).toLocaleDateString()}</TableCell>
+                        <TableCell>{product.eventsCount}</TableCell>
+                        <TableCell>
+                          {product.verificationStatus === "verified" && (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-green-500/20">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Verified
+                            </Badge>
+                          )}
+                          {product.verificationStatus === "pending" && (
+                            <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Pending
+                            </Badge>
+                          )}
+                          {product.verificationStatus === "failed" && (
+                            <Badge variant="secondary" className="bg-red-500/10 text-red-500 border-red-500/20">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Failed
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleProductSelect(product.productId)}
+                              className="flex items-center gap-1"
+                            >
+                              <Search className="h-3 w-3" />
+                              Track
+                            </Button>
+                            
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  className="flex items-center gap-1"
+                                >
+                                  <QrCode className="h-3 w-3" />
+                                  QR
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>QR Code for {product.productId}</DialogTitle>
+                                </DialogHeader>
+                                <div className="flex justify-center py-4">
+                                  <QRCodeGenerator 
+                                    value={product.productId}
+                                    size={200}
+                                    showActions={true}
+                                  />
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Card3D>
+        )}
+
+        {/* Back to Products Button */}
+        {!showAllProducts && (
+          <div className="mb-6">
+            <Button variant="outline" onClick={handleBackToProducts} className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Back to All Products
+            </Button>
+          </div>
+        )}
+
         {/* Timeline Visualization */}
         {trackingData && trackingData.length > 0 && (
           <div className="space-y-6">
             <Card3D>
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold">Product Journey: {productId}</h2>
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3" />
-                  {trackingData.filter((event) => event.aiVerified === "verified").length} / {trackingData.length}{" "}
-                  Verified
-                </Badge>
+                <div className="flex items-center gap-4">
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    {trackingData.filter((event) => event.aiVerified === "verified").length} / {trackingData.length}{" "}
+                    Verified
+                  </Badge>
+                  
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex items-center gap-2">
+                        <QrCode className="h-4 w-4" />
+                        Show QR Code
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>QR Code for {productId}</DialogTitle>
+                      </DialogHeader>
+                      <div className="flex justify-center py-4">
+                        <QRCodeGenerator 
+                          value={productId}
+                          size={250}
+                          showActions={true}
+                        />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
 
               <div className="relative">
@@ -190,14 +383,14 @@ export default function TrackProductPage() {
                             {formatDate(event.timestamp)}
                           </div>
 
-                          {event.metadata.location && (
+                          {event.metadata?.location?.lat && event.metadata?.location?.lng && (
                             <div className="flex items-center gap-2 text-sm">
                               <MapPin className="h-4 w-4 text-muted-foreground" />
                               {event.metadata.location.lat.toFixed(4)}, {event.metadata.location.lng.toFixed(4)}
                             </div>
                           )}
 
-                          {event.metadata.temperature && (
+                          {event.metadata?.temperature && (
                             <div className="flex items-center gap-2 text-sm">
                               <span className="text-muted-foreground">🌡️</span>
                               {event.metadata.temperature}°C
@@ -210,7 +403,7 @@ export default function TrackProductPage() {
                           </div>
                         </div>
 
-                        {event.metadata.notes && (
+                        {event.metadata?.notes && (
                           <div className="mb-4">
                             <p className="text-sm bg-muted/50 rounded p-2">{event.metadata.notes}</p>
                           </div>
